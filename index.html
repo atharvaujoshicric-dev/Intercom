@@ -935,6 +935,7 @@ const state = {
   heartbeatTimer: null,
   tickerTimer: null,
   healthCheckTimer: null,
+  signalPollTimer: null,
   channelNoCounter: 0,
   mySharingEnabledHere: true,
   profileReturnScreen: 'convoys',
@@ -1424,6 +1425,8 @@ async function enterConvoy(convoyStub){
     state.lastSentAt = 0;           // don't let a stale throttle timestamp delay the first position update
     state.lastCoords = null;
     state.lastCoordsTime = null;
+    signalSendErrorShown = false;
+    signalFetchErrorShown = false;
     if (!state.map) initMap();
     await loadInitialMembersAndLocations();
 
@@ -1444,6 +1447,7 @@ async function enterConvoy(convoyStub){
     startHeartbeat();
     startTicker();
     startHealthCheck();
+    startSignalPolling();
     requestGeolocationAndStart();
     await onVoiceSettingsChanged();
     renderOwnerSettingsPanel();
@@ -1514,6 +1518,7 @@ async function leaveConvoy(){
     stopHeartbeat();
     stopTicker();
     stopHealthCheck();
+    stopSignalPolling();
     if (state.channel) { await supabaseClient.removeChannel(state.channel); state.channel = null; }
 
     await supabaseClient.from('locations').delete().eq('convoy_id', state.convoy.id).eq('user_id', state.user.id);
@@ -1549,6 +1554,7 @@ async function exitConvoySession(){
   stopHeartbeat();
   stopTicker();
   stopHealthCheck();
+  stopSignalPolling();
   if (state.channel) { await supabaseClient.removeChannel(state.channel); state.channel = null; }
   try {
     await supabaseClient.from('locations').delete().eq('convoy_id', convoyId).eq('user_id', state.user.id);
@@ -1565,6 +1571,7 @@ async function handleBeingRemovedFromConvoy(){
   stopHeartbeat();
   stopTicker();
   stopHealthCheck();
+  stopSignalPolling();
   if (state.channel) { await supabaseClient.removeChannel(state.channel); state.channel = null; }
   await exitToConvoysScreen();
 }
@@ -1940,14 +1947,35 @@ function subscribeRealtime(){
 // (e.g. the other person's offer arrived in the split second before we
 // finished subscribing). Processed in order, then deleted like any other
 // signal.
+let signalFetchErrorShown = false;
 async function fetchQueuedSignals(){
   if (!state.convoy) return;
   const { data, error } = await supabaseClient
     .from('webrtc_signals').select('*')
     .eq('convoy_id', state.convoy.id).eq('to_user', state.user.id)
     .order('created_at', { ascending: true });
-  if (error) { console.warn('[voice] failed to fetch queued signals', error); return; }
+  if (error) {
+    console.warn('[voice] failed to fetch queued signals', error);
+    if (!signalFetchErrorShown) {
+      signalFetchErrorShown = true;
+      showToast(`Voice setup error: ${error.message || 'could not check for voice signals'}`, 'error');
+    }
+    return;
+  }
   for (const row of data || []) await handleSignalRow(row);
+}
+
+// Belt-and-suspenders delivery: realtime push (postgres_changes, above)
+// should deliver signals instantly, but this polls the same data directly
+// every 2s regardless — so voice signaling still works even if realtime
+// push for this specific table isn't behaving as expected on a given
+// project. A plain SELECT is about as hard to get wrong as it gets.
+function startSignalPolling(){
+  stopSignalPolling();
+  state.signalPollTimer = setInterval(() => { fetchQueuedSignals(); }, 2000);
+}
+function stopSignalPolling(){
+  if (state.signalPollTimer) { clearInterval(state.signalPollTimer); state.signalPollTimer = null; }
 }
 
 let realtimeReconnectTimer = null;
@@ -2258,14 +2286,22 @@ function maybeInitiatePeerConnection(peerId, force){
   getOrCreatePeer(peerId);
 }
 
+let signalSendErrorShown = false;
 function sendSignal(to, payload){
   if (!state.convoy) { console.warn('[voice] cannot send signal — not in a convoy'); return; }
   const { type, ...rest } = payload; // rest is {sdp} for offer/answer, or {candidate} for ice
   supabaseClient.from('webrtc_signals').insert({
     convoy_id: state.convoy.id, from_user: state.user.id, to_user: to, signal_type: type, payload: rest
   }).then(({ error }) => {
-    if (error) console.warn('[voice] failed to send signal', error);
-    else console.log(`[voice] sent ${type} to ${to}`);
+    if (error) {
+      console.warn('[voice] failed to send signal', error);
+      if (!signalSendErrorShown) {
+        signalSendErrorShown = true;
+        showToast(`Voice setup error: ${error.message || 'could not send signal'}`, 'error');
+      }
+    } else {
+      console.log(`[voice] sent ${type} to ${to}`);
+    }
   });
 }
 
@@ -2303,7 +2339,13 @@ async function handleSignal(payload){
         entry.pendingCandidates.push(payload.candidate);
       }
     }
-  } catch (err) { console.warn('[voice] signal handling failed', err); }
+  } catch (err) {
+    console.warn('[voice] signal handling failed', err);
+    if (!signalSendErrorShown) {
+      signalSendErrorShown = true;
+      showToast(`Voice setup error: ${err.message || 'signal handling failed'}`, 'error');
+    }
+  }
 }
 
 // Reshapes a webrtc_signals table row into the {to, from, type, sdp|candidate}
