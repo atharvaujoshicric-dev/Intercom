@@ -904,6 +904,24 @@ function requireSupabase(msgElId){
   return false;
 }
 
+// Postgres error 23503 = foreign_key_violation. In this app, every such
+// violation on a user-referencing column means the same thing: the
+// browser has a cached login session for a user id that no longer
+// exists (the database was reset, or you switched Supabase projects,
+// after this browser already had a session cached). The token itself
+// is still valid, so the app *thinks* it's logged in — but nothing it
+// tries to create will ever work. The fix is always the same: sign out
+// completely and log in (or sign up) fresh.
+function isStaleSessionError(error){
+  return !!error && error.code === '23503';
+}
+async function recoverFromStaleSession(){
+  showToast('Your saved login no longer matches this database — signing you out. Please log in or sign up again.', 'error');
+  try { if (supabaseClient) await supabaseClient.auth.signOut(); } catch (e) { /* ignore */ }
+  safeStorage.removeItem('convoy_intercom_active_convoy_id');
+  setTimeout(() => location.reload(), 1800);
+}
+
 /* ============================================================
    3. APP STATE
    ============================================================ */
@@ -1371,6 +1389,7 @@ $('#create-form').addEventListener('submit', async (e) => {
     $('#create-name').value = '';
     await enterConvoy(convoy);
   } catch (err) {
+    if (isStaleSessionError(err)) { await recoverFromStaleSession(); return; }
     setFormMsg('#convoy-msg', err.message || 'Failed to create convoy.', 'error');
     cancelPrimedPermissionsIfNoConvoy();
   } finally {
@@ -1404,6 +1423,7 @@ $('#join-form').addEventListener('submit', async (e) => {
     $('#join-code').value = '';
     await enterConvoy(convoy);
   } catch (err) {
+    if (isStaleSessionError(err)) { await recoverFromStaleSession(); return; }
     setFormMsg('#convoy-msg', err.message || 'Failed to join convoy.', 'error');
     cancelPrimedPermissionsIfNoConvoy();
   } finally {
@@ -1457,6 +1477,7 @@ async function enterConvoy(convoyStub){
     console.error('enterConvoy failed', err);
     state.convoy = null;
     safeStorage.removeItem('convoy_intercom_active_convoy_id');
+    if (isStaleSessionError(err)) { await recoverFromStaleSession(); return; }
     showToast(err.message || 'Failed to open this convoy.', 'error');
     await showConvoysScreen();
   }
