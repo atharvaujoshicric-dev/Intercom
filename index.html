@@ -557,9 +557,27 @@ async function joinConvoy(){
 
 async function enterConvoy(convoy){
   const {data:existing}=await sb.from('convoy_members').select('*').eq('convoy_id',convoy.id).eq('user_id',currentUser.id).maybeSingle();
+  const isCreator = convoy.creator_id === currentUser.id;
+
   if(!existing){
-    await sb.from('convoy_members').insert({convoy_id:convoy.id, user_id:currentUser.id, role:'member'});
+    // FIX: the convoy creator must always rejoin as 'owner' with route access,
+    // never as a plain 'member'. Previously every rejoin (including the
+    // creator's) hardcoded role:'member', which permanently demoted the
+    // creator after their first "compulsory leave" and they lost all admin
+    // controls (settings, mute, member management, PTT toggle) for good.
+    await sb.from('convoy_members').insert({
+      convoy_id:convoy.id,
+      user_id:currentUser.id,
+      role: isCreator ? 'owner' : 'member',
+      can_manage_route: isCreator
+    });
+  } else if(isCreator && existing.role!=='owner'){
+    // Safety net: if a stale/incorrect row somehow exists for the creator
+    // with the wrong role (e.g. from before this fix, or a race condition),
+    // restore owner status rather than leaving them stuck as a member.
+    await sb.from('convoy_members').update({role:'owner', can_manage_route:true}).eq('id',existing.id);
   }
+
   await openConvoyDetail(convoy);
 }
 
