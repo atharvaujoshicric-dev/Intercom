@@ -313,8 +313,8 @@ input:checked+.slider:before{transform:translateX(20px);}
    CONVOY INTERCOM — single-file app
    PASTE YOUR SUPABASE CREDENTIALS BELOW ↓↓↓
    ====================================================================== */
-const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+const SUPABASE_URL = "https://kjvcnotidbifaymoeadn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqdmNub3RpZGJpZmF5bW9lYWRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMzM4MzcsImV4cCI6MjA5ODgwOTgzN30.vmOujJP2lxgeSxSlpsPAhBy5jJ74OlTic0lNWvxwV8w";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth:{ persistSession:true, storage: window.localStorage, autoRefreshToken:true }
 });
