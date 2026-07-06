@@ -7,32 +7,31 @@
 <title>Convoy Intercom</title>
 <meta name="theme-color" content="#0f172a">
 
-<!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Leaflet Routing Machine (route search/preview) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-<!-- Supabase JS -->
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
 /* ================= THEME ================= */
 :root{
-  --bg:#f3f4f6; --bg2:#ffffff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
-  --accent:#2563eb; --accent2:#1d4ed8; --danger:#dc2626; --success:#16a34a;
-  --card:#ffffff; --shadow:0 2px 10px rgba(0,0,0,.08);
+  --bg:#f6f7f9; --bg2:#ffffff; --text:#0f172a; --muted:#6b7280; --border:#e8eaed;
+  --accent:#2563eb; --accent2:#1d4ed8; --danger:#e11d48; --success:#059669;
+  --card:#ffffff; --shadow:0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --radius:16px; --radius-sm:10px;
 }
 [data-theme="dark"]{
-  --bg:#0f172a; --bg2:#111827; --text:#e5e7eb; --muted:#9ca3af; --border:#1f2937;
-  --accent:#3b82f6; --accent2:#2563eb; --danger:#ef4444; --success:#22c55e;
-  --card:#1e293b; --shadow:0 2px 10px rgba(0,0,0,.4);
+  --bg:#0b1220; --bg2:#111827; --text:#f1f5f9; --muted:#8b95a7; --border:#1f2937;
+  --accent:#3b82f6; --accent2:#60a5fa; --danger:#f87171; --success:#34d399;
+  --card:#161f2e; --shadow:0 1px 3px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.25);
 }
 *{box-sizing:border-box;}
 html,body{height:100%;margin:0;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg); color:var(--text); transition:background .2s,color .2s;
+  -webkit-tap-highlight-color:transparent;
 }
 button{font-family:inherit;cursor:pointer;}
 input,select{font-family:inherit;}
@@ -41,130 +40,144 @@ a{color:var(--accent);}
 #app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;display:flex;flex-direction:column;}
 @media(min-width:900px){#app{max-width:900px;}}
 
-/* ---- top bar ---- */
 .topbar{
-  display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
+  display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
   background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;
+  backdrop-filter:saturate(180%) blur(8px);
 }
-.topbar h1{font-size:18px;margin:0;font-weight:700;}
-.iconbtn{background:none;border:none;color:var(--text);font-size:20px;padding:6px 8px;border-radius:8px;}
-.iconbtn:hover{background:var(--border);}
+.topbar h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.2px;}
+.topbar-icons{display:flex;gap:2px;}
+.iconbtn{background:none;border:none;color:var(--text);font-size:19px;padding:8px;border-radius:10px;line-height:1;opacity:.85;}
+.iconbtn:hover{background:var(--border);opacity:1;}
 
-/* ---- forms/cards ---- */
 .screen{padding:16px;flex:1;overflow-y:auto;}
-.card{background:var(--card);border-radius:14px;padding:18px;box-shadow:var(--shadow);margin-bottom:14px;}
-.field{margin-bottom:12px;}
-.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+.card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:14px;border:1px solid var(--border);}
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
 .field input,.field select{
-  width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);
-  background:var(--bg);color:var(--text);font-size:15px;
+  width:100%;padding:11px 13px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
+  background:var(--bg);color:var(--text);font-size:15px;transition:border-color .15s;
 }
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
 .btn{
-  width:100%;padding:12px 14px;border-radius:10px;border:none;background:var(--accent);
-  color:#fff;font-weight:700;font-size:15px;transition:.15s;
+  width:100%;padding:13px 14px;border-radius:var(--radius-sm);border:none;background:var(--accent);
+  color:#fff;font-weight:700;font-size:15px;transition:.15s;letter-spacing:.1px;
 }
 .btn:hover{background:var(--accent2);}
-.btn.secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);}
+.btn:active{transform:scale(.98);}
+.btn.secondary{background:transparent;color:var(--text);border:1.5px solid var(--border);}
 .btn.danger{background:var(--danger);}
 .btn.success{background:var(--success);}
-.btn.small{width:auto;padding:8px 12px;font-size:13px;}
+.btn.small{width:auto;padding:9px 14px;font-size:13px;}
 .row{display:flex;gap:10px;}
 .row>*{flex:1;}
 .link-btn{background:none;border:none;color:var(--accent);font-weight:600;font-size:14px;padding:6px 0;width:100%;}
-.error-msg{color:var(--danger);font-size:13px;margin-top:8px;}
+.error-msg{color:var(--danger);font-size:13px;margin-top:8px;min-height:14px;}
 .muted{color:var(--muted);font-size:13px;}
 .center{text-align:center;}
 
-/* ---- ads carousel ---- */
-.ads-wrap{margin-bottom:16px;}
-.ads-track{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;}
+.ads-wrap{margin-bottom:18px;}
+.ads-track{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:2px;margin:0 -16px;padding-left:16px;padding-right:16px;}
+.ads-track::-webkit-scrollbar{display:none;}
 .ad-card{
-  min-width:260px;scroll-snap-align:start;border-radius:14px;overflow:hidden;background:var(--card);
-  box-shadow:var(--shadow);position:relative;text-decoration:none;color:inherit;
+  min-width:250px;scroll-snap-align:start;border-radius:var(--radius);overflow:hidden;background:var(--card);
+  box-shadow:var(--shadow);position:relative;text-decoration:none;color:inherit;border:1px solid var(--border);
 }
-.ad-card img,.ad-card video{width:100%;height:130px;object-fit:cover;display:block;}
-.ad-card .ad-title{padding:8px 10px;font-size:13px;font-weight:600;}
-.ad-tag{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;}
+.ad-card img,.ad-card video{width:100%;height:120px;object-fit:cover;display:block;}
+.ad-card .ad-title{padding:9px 11px;font-size:13px;font-weight:600;}
+.ad-tag{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.65);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:6px;font-weight:700;letter-spacing:.4px;}
 
-/* ---- convoy list (whatsapp-style) ---- */
+.section-label{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:2px 2px 10px;}
 .convoy-row{
-  display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);
-  border-radius:12px;margin-bottom:8px;box-shadow:var(--shadow);
+  display:flex;align-items:center;gap:13px;padding:13px;background:var(--card);
+  border-radius:var(--radius);margin-bottom:9px;box-shadow:var(--shadow);border:1px solid var(--border);
+  transition:transform .1s;
 }
-.convoy-row:active{transform:scale(.99);}
+.convoy-row:active{transform:scale(.98);}
 .convoy-avatar{
-  width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;
-  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0;
+  width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex-shrink:0;
 }
 .convoy-info{flex:1;min-width:0;}
-.convoy-info .name{font-weight:700;font-size:15px;}
-.convoy-info .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.badge{font-size:10.5px;background:var(--accent);color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;}
+.convoy-info .name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;}
+.convoy-info .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.badge{font-size:10px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.2px;}
+.badge.live{background:var(--success);}
+.chev{color:var(--muted);font-size:18px;}
 .fab{
-  position:fixed;bottom:24px;right:calc(50% - 260px + 24px);width:56px;height:56px;border-radius:50%;
-  background:var(--accent);color:#fff;font-size:26px;border:none;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:30;
+  position:fixed;bottom:26px;right:calc(50% - 260px + 22px);width:58px;height:58px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:27px;border:none;
+  box-shadow:0 6px 18px rgba(37,99,235,.4);z-index:30;
 }
 @media(max-width:560px){.fab{right:20px;}}
 
-/* ---- convoy detail ---- */
-#map{width:100%;height:44vh;min-height:260px;border-bottom:1px solid var(--border);}
-.member-list{padding:10px 12px;}
+#map{width:100%;height:42vh;min-height:250px;border-bottom:1px solid var(--border);}
+.member-list{padding:12px 14px 4px;}
 .member-item{
-  display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--card);
-  margin-bottom:8px;box-shadow:var(--shadow);
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--radius-sm);background:var(--card);
+  margin-bottom:8px;box-shadow:var(--shadow);border:1px solid var(--border);transition:.15s;
 }
-.member-item.speaking{outline:2px solid var(--success);}
-.status-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;}
-.status-dot.online{background:var(--success);}
+.member-item.speaking{border-color:var(--success);box-shadow:0 0 0 3px rgba(5,150,105,.15);}
+.status-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+.status-dot.online{background:var(--success);box-shadow:0 0 0 3px rgba(5,150,105,.18);}
 .member-item .m-info{flex:1;min-width:0;}
 .member-item .m-name{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;}
-.member-item .m-meta{font-size:12px;color:var(--muted);}
-.mini-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:11px;color:var(--text);}
+.member-item .m-meta{font-size:12px;color:var(--muted);margin-top:1px;}
+.speak-icon{color:var(--success);font-size:13px;}
+.mini-btn{background:transparent;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;}
+.mini-btn:hover{background:var(--border);}
+.member-actions{display:flex;gap:6px;flex-shrink:0;}
 
-/* ---- ptt ---- */
 .ptt-bar{
   position:sticky;bottom:0;background:var(--bg2);border-top:1px solid var(--border);
-  padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;z-index:20;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:9px;z-index:20;
 }
 .ptt-btn{
-  width:88px;height:88px;border-radius:50%;background:var(--accent);color:#fff;border:none;
-  font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;text-align:center;
-  user-select:none;-webkit-user-select:none;touch-action:none;box-shadow:0 4px 14px rgba(0,0,0,.25);
+  width:84px;height:84px;border-radius:50%;background:var(--accent);color:#fff;border:none;
+  font-size:12.5px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;text-align:center;
+  user-select:none;-webkit-user-select:none;touch-action:none;box-shadow:0 6px 16px rgba(37,99,235,.35);
+  transition:transform .12s,background .12s;
 }
-.ptt-btn.active{background:var(--success);transform:scale(1.08);}
-.ptt-btn:disabled{background:var(--muted);}
-.ptt-status{font-size:12.5px;color:var(--muted);min-height:16px;}
+.ptt-btn.active{background:var(--success);transform:scale(1.1);box-shadow:0 6px 20px rgba(5,150,105,.45);}
+.ptt-btn:disabled{background:var(--muted);box-shadow:none;}
+.ptt-status{font-size:12.5px;color:var(--muted);min-height:16px;font-weight:500;}
+#audio-unlock-banner{
+  position:sticky;bottom:0;background:var(--accent);color:#fff;padding:10px 16px;text-align:center;
+  font-size:13.5px;font-weight:600;z-index:25;cursor:pointer;
+}
 
-/* ---- modal ---- */
 .modal-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:100;
+  position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-end;justify-content:center;z-index:100;
+  backdrop-filter:blur(2px);
 }
 @media(min-width:700px){.modal-overlay{align-items:center;}}
 .modal{
-  background:var(--bg2);width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:20px;
-  max-height:88vh;overflow-y:auto;
+  background:var(--bg2);width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:22px;
+  max-height:88vh;overflow-y:auto;border:1px solid var(--border);
 }
-@media(min-width:700px){.modal{border-radius:16px;}}
-.modal h3{margin-top:0;}
-.close-x{position:sticky;top:0;float:right;background:none;border:none;font-size:20px;color:var(--muted);}
+@media(min-width:700px){.modal{border-radius:20px;}}
+.modal h3{margin:0 0 14px;font-size:18px;}
+.close-x{position:sticky;top:-2px;float:right;background:var(--border);border:none;font-size:16px;color:var(--text);width:28px;height:28px;border-radius:50%;line-height:28px;}
 
-/* ---- toggle switch ---- */
-.switch-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.switch-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:12px;}
+.switch-row:last-of-type{border-bottom:none;}
 .switch{position:relative;width:44px;height:24px;flex-shrink:0;}
 .switch input{opacity:0;width:0;height:0;}
-.slider{position:absolute;inset:0;background:var(--muted);border-radius:24px;transition:.2s;}
-.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+.slider{position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.2s;}
+.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
 input:checked+.slider{background:var(--success);}
 input:checked+.slider:before{transform:translateX(20px);}
 
-.search-box{display:flex;gap:8px;margin-bottom:8px;}
+.search-box{display:flex;gap:8px;margin-bottom:10px;}
+.search-box input{flex:1;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;}
 .toast{
-  position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;
-  padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.3);
+  position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;
+  padding:11px 18px;border-radius:12px;font-size:13.5px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.35);
+  max-width:88%;text-align:center;
 }
-.tabs{display:flex;gap:8px;margin-bottom:14px;}
-.tab-btn{flex:1;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-weight:600;font-size:13px;}
-.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.tabs{display:flex;gap:8px;margin-bottom:16px;background:var(--bg);border-radius:12px;padding:4px;}
+.tab-btn{flex:1;padding:9px;border-radius:9px;border:none;background:transparent;color:var(--muted);font-weight:700;font-size:13.5px;}
+.tab-btn.active{background:var(--card);color:var(--text);box-shadow:var(--shadow);}
 .leaflet-marker-icon.pulse{filter:drop-shadow(0 0 4px rgba(37,99,235,.8));}
 </style>
 </head>
@@ -173,8 +186,8 @@ input:checked+.slider:before{transform:translateX(20px);}
 
   <!-- ============ AUTH VIEW ============ -->
   <div id="view-auth" class="screen">
-    <div class="card" style="margin-top:40px;">
-      <h2 class="center" style="margin-top:0;">🚚 Convoy Intercom</h2>
+    <div class="card" style="margin-top:36px;">
+      <h2 class="center" style="margin-top:2px;">🚚 Convoy Intercom</h2>
       <div class="tabs">
         <button class="tab-btn active" id="tab-login" onclick="switchAuthTab('login')">Login</button>
         <button class="tab-btn" id="tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
@@ -209,7 +222,7 @@ input:checked+.slider:before{transform:translateX(20px);}
   <div id="view-home" class="hidden">
     <div class="topbar">
       <h1>🚚 Convoy Intercom</h1>
-      <div>
+      <div class="topbar-icons">
         <button class="iconbtn" onclick="toggleTheme()" title="Toggle theme">🌓</button>
         <button class="iconbtn" id="admin-nav-btn" onclick="openAdmin()" title="Ads admin">📢</button>
         <button class="iconbtn" onclick="openProfile()" title="Profile">👤</button>
@@ -219,9 +232,10 @@ input:checked+.slider:before{transform:translateX(20px);}
       <div class="ads-wrap">
         <div class="ads-track" id="ads-track"></div>
       </div>
+      <div class="section-label">Your Convoys</div>
       <div id="convoy-list"></div>
       <div id="empty-state" class="card center hidden">
-        <p class="muted">No convoys yet. Create one or join with a code.</p>
+        <p class="muted" style="margin:4px 0;">No convoys yet. Tap + to create one or join with a code.</p>
       </div>
     </div>
     <button class="fab" onclick="openCreateJoin()">+</button>
@@ -232,22 +246,23 @@ input:checked+.slider:before{transform:translateX(20px);}
     <div class="topbar">
       <button class="iconbtn" onclick="leaveConvoyView()">←</button>
       <h1 id="convoy-title">Convoy</h1>
-      <div>
+      <div class="topbar-icons">
         <button class="iconbtn" onclick="openConvoySettings()" title="Convoy settings">⚙️</button>
       </div>
     </div>
     <div id="map"></div>
-    <div class="screen" style="padding-top:8px;">
+    <div class="screen" style="padding-top:10px;">
       <div class="search-box hidden" id="route-search-box">
-        <input id="route-search-input" placeholder="Search destination…" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);">
+        <input id="route-search-input" placeholder="Search destination…">
         <button class="btn small" onclick="searchDestination()">Set Route</button>
         <button class="btn small secondary" onclick="clearRoute()">Clear</button>
       </div>
       <div class="member-list" id="member-list"></div>
     </div>
+    <div id="audio-unlock-banner" class="hidden" onclick="unlockAudioPlayback()">🔊 Tap once to enable convoy audio</div>
     <div class="ptt-bar">
       <div class="ptt-status" id="ptt-status">Hold to talk</div>
-      <button class="ptt-btn" id="ptt-btn">HOLD<br>TO TALK</button>
+      <button class="ptt-btn" id="ptt-btn" disabled>HOLD<br>TO TALK</button>
     </div>
   </div>
 
@@ -256,7 +271,7 @@ input:checked+.slider:before{transform:translateX(20px);}
     <div class="topbar">
       <button class="iconbtn" onclick="closeProfile()">←</button>
       <h1>Profile</h1>
-      <div></div>
+      <div style="width:36px;"></div>
     </div>
     <div class="screen">
       <div class="card">
@@ -286,7 +301,7 @@ input:checked+.slider:before{transform:translateX(20px);}
     <div class="topbar">
       <button class="iconbtn" onclick="closeAdmin()">←</button>
       <h1>Ads Admin</h1>
-      <div></div>
+      <div style="width:36px;"></div>
     </div>
     <div class="screen">
       <div class="card">
@@ -304,7 +319,6 @@ input:checked+.slider:before{transform:translateX(20px);}
   </div>
 </div>
 
-<!-- generic modal container -->
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
@@ -320,22 +334,23 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 /* ---------------- Global state ---------------- */
-let currentUser = null;        // auth user
-let myProfile = null;          // profiles row
-let myConvoys = [];            // saved_convoys joined with convoys
-let activeConvoy = null;       // convoy row currently open
-let activeMembership = null;   // my convoy_members row for active convoy
-let members = {};              // user_id -> {profile, member row, location, online}
-let map, myMarker, routeControl;
-let markerLayer = {};
+let currentUser = null;
+let myProfile = null;
+let myConvoys = [];
+let activeConvoy = null;
+let activeMembership = null;
+let members = {};
+let map, markerLayer = {}, routeControl;
 let watchId = null;
 let lastSentAt = 0;
 let lastPos = null;
-let locChannel, memberChannel, speakChannel, signalChannel, presenceChannel, routeChannel;
+let locChannel, memberChannel, speakChannel, presenceChannel, routeChannel;
 let localStream = null;
-let peers = {};                // user_id -> RTCPeerConnection
+let micAvailable = false;
+let peers = {};
 let audioEls = {};
 let pttHeld = false;
+let audioUnlocked = false;
 let ads = [];
 
 /* ---------------- utils ---------------- */
@@ -367,9 +382,7 @@ function uuidShort(){ return Math.random().toString(36).slice(2,8); }
 
 /* ---------------- THEME ---------------- */
 function applyTheme(t){ document.body.setAttribute('data-theme',t); localStorage.setItem('ci_theme',t); }
-function toggleTheme(){
-  applyTheme(document.body.getAttribute('data-theme')==='dark'?'light':'dark');
-}
+function toggleTheme(){ applyTheme(document.body.getAttribute('data-theme')==='dark'?'light':'dark'); }
 applyTheme(localStorage.getItem('ci_theme')||'light');
 
 /* ======================================================================
@@ -437,7 +450,6 @@ async function afterAuth(){
   await loadMyConvoys();
 }
 
-/* Restore session on load */
 (async function boot(){
   const {data:{session}} = await sb.auth.getSession();
   if(session){ await afterAuth(); } else { show('view-auth'); }
@@ -461,7 +473,7 @@ async function loadAds(){
     el.innerHTML = (ad.media_type==='video'
       ? `<video src="${ad.media_url}" muted loop autoplay playsinline></video>`
       : `<img src="${ad.media_url}" alt="${ad.title}">`)
-      + `<span class="ad-tag">Ad</span><div class="ad-title">${ad.title}</div>`;
+      + `<span class="ad-tag">AD</span><div class="ad-title">${ad.title}</div>`;
     track.appendChild(el);
   });
 }
@@ -480,9 +492,10 @@ async function loadMyConvoys(){
     row.innerHTML=`
       <div class="convoy-avatar">${initials(c.name)}</div>
       <div class="convoy-info">
-        <div class="name">${c.name} ${activeSet.has(c.id)?'<span class="badge">IN</span>':''}</div>
+        <div class="name">${c.name} ${activeSet.has(c.id)?'<span class="badge live">LIVE</span>':''}</div>
         <div class="sub">Code: ${c.code} • ${activeSet.has(c.id)?'Tap to open':'Tap to rejoin'}</div>
-      </div>`;
+      </div>
+      <div class="chev">›</div>`;
     list.appendChild(row);
   });
 }
@@ -542,7 +555,6 @@ async function joinConvoy(){
   enterConvoy(convoy);
 }
 
-/* rejoin from saved list if membership was left */
 async function enterConvoy(convoy){
   const {data:existing}=await sb.from('convoy_members').select('*').eq('convoy_id',convoy.id).eq('user_id',currentUser.id).maybeSingle();
   if(!existing){
@@ -562,13 +574,20 @@ async function openConvoyDetail(convoy){
   hide('view-home'); show('view-convoy');
   $('convoy-title').textContent = convoy.name;
   $('route-search-box').classList.toggle('hidden', !(mem.role!=='member' || mem.can_manage_route));
+  hide('audio-unlock-banner');
+  audioUnlocked = false;
 
   initMap();
   await loadMembers();
   await loadRoute();
+
+  // IMPORTANT FIX: acquire microphone BEFORE opening realtime/WebRTC signaling,
+  // so peer connections are created with the audio track already attached.
+  // Previously mic permission was requested after signaling started, so peer
+  // connections had no audio m-line and nobody could ever hear anyone.
+  await initPTT();
   subscribeConvoyRealtime();
   startLocationTracking();
-  initPTT();
 }
 
 function initMap(){
@@ -577,13 +596,14 @@ function initMap(){
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'&copy; OpenStreetMap contributors', maxZoom:19
   }).addTo(map);
+  map.on('dragstart zoomstart',()=>{ map._userMoved=true; });
 }
 
 async function loadMembers(){
   const {data:rows}=await sb.from('convoy_members').select('*, profiles(*)').eq('convoy_id',activeConvoy.id);
   members={};
   (rows||[]).forEach(r=>{
-    members[r.user_id]={ member:r, profile:r.profiles, location:null, online:false };
+    members[r.user_id]={ member:r, profile:r.profiles, location:null, online:false, speaking:false };
   });
   const {data:locs}=await sb.from('locations').select('*').eq('convoy_id',activeConvoy.id);
   (locs||[]).forEach(l=>{ if(members[l.user_id]) members[l.user_id].location=l; });
@@ -609,13 +629,14 @@ function renderMemberList(){
     div.innerHTML=`
       <div class="status-dot ${online?'online':''}"></div>
       <div class="m-info">
-        <div class="m-name">@${m.profile.username}${isMe?' (you)':''} ${m.member.role!=='member'?'<span class="badge">'+m.member.role.toUpperCase()+'</span>':''}</div>
-        <div class="m-meta">Speed: ${fmtSpeed(m.location? m.location.speed: null)} • Dist: ${isMe?'0 m':fmtDist(dist)} • ${timeAgo(m.location?m.location.updated_at:null)}</div>
+        <div class="m-name">@${m.profile.username}${isMe?' (you)':''} ${m.speaking?'<span class="speak-icon">🔊</span>':''} ${m.member.role!=='member'?'<span class="badge">'+m.member.role.toUpperCase()+'</span>':''}</div>
+        <div class="m-meta">${fmtSpeed(m.location? m.location.speed: null)} · ${isMe?'0 m':fmtDist(dist)} · ${timeAgo(m.location?m.location.updated_at:null)}</div>
       </div>
       ${isOwnerOrAdmin && !isMe ? `
-        <button class="mini-btn" onclick="toggleRouteAccess('${m.profile.id}', ${!m.member.can_manage_route})">${m.member.can_manage_route?'Revoke Route':'Grant Route'}</button>
+      <div class="member-actions">
+        <button class="mini-btn" onclick="toggleRouteAccess('${m.profile.id}', ${!m.member.can_manage_route})">${m.member.can_manage_route?'Revoke':'Route'}</button>
         <button class="mini-btn" onclick="removeMember('${m.profile.id}')">Remove</button>
-      ` : ''}
+      </div>` : ''}
     `;
     list.appendChild(div);
   });
@@ -633,16 +654,13 @@ function renderMarkers(){
     if(markerLayer[m.profile.id]){
       markerLayer[m.profile.id].setLatLng([m.location.lat,m.location.lng]).setIcon(icon);
     } else {
-      markerLayer[m.profile.id]=L.marker([m.location.lat,m.location.lng],{icon}).addTo(map)
-        .bindPopup(`<b>@${m.profile.profile? '' : m.profile.username}</b>`);
+      markerLayer[m.profile.id]=L.marker([m.location.lat,m.location.lng],{icon}).addTo(map);
       markerLayer[m.profile.id].bindPopup(()=> `<b>@${m.profile.username}</b><br>${fmtSpeed(m.location.speed)}<br>${timeAgo(m.location.updated_at)}`);
     }
   });
   const pts=Object.values(members).filter(m=>m.location).map(m=>[m.location.lat,m.location.lng]);
   if(pts.length && !map._userMoved){ map.fitBounds(pts,{maxZoom:15,padding:[40,40]}); }
 }
-// track manual map interaction so we stop auto-fitting after user pans/zooms
-function markUserMoved(){ map._userMoved=true; }
 
 /* ======================================================================
    REALTIME SUBSCRIPTIONS (locations, members, speaking, route, presence)
@@ -685,9 +703,21 @@ function subscribeConvoyRealtime(){
       const state=presenceChannel.presenceState();
       Object.keys(members).forEach(uid=> members[uid].online = !!state[uid]);
       renderMemberList();
+      // FIX: connect to everyone already in the room at sync time, not just
+      // future joiners. Without this, a user opening the convoy after others
+      // are already present never establishes a peer connection to them.
+      Object.keys(state).forEach(otherId=>{
+        if(otherId!==currentUser.id) connectToPeer(otherId);
+      });
     })
     .on('presence',{event:'join'},({key})=>{
       if(key!==currentUser.id) connectToPeer(key);
+    })
+    .on('presence',{event:'leave'},({key})=>{
+      if(peers[key]){ peers[key].close(); delete peers[key]; }
+      if(audioEls[key]){ audioEls[key].remove(); delete audioEls[key]; }
+      if(members[key]) members[key].online=false;
+      renderMemberList();
     })
     .on('broadcast',{event:'signal'},({payload})=> handleSignal(payload))
     .subscribe(async(status)=>{
@@ -695,7 +725,6 @@ function subscribeConvoyRealtime(){
         await presenceChannel.track({user_id:currentUser.id, username:myProfile.username, at:Date.now()});
       }
     });
-  signalChannel = presenceChannel;
 }
 
 function cleanupChannels(){
@@ -731,10 +760,9 @@ async function onPosition(pos){
   let movedEnough = true;
   if(lastPos){
     const d=haversine(lastPos.lat,lastPos.lng,lat,lng);
-    movedEnough = d>3; // only push if moved >3m, saves battery/network
+    movedEnough = d>3;
   }
   lastPos={lat,lng};
-  if(myMarker){ myMarker.setLatLng([lat,lng]); } 
   if(!activeConvoy || !myProfile.location_enabled) return;
   if(!activeMembership || activeMembership.share_location===false){ renderMemberList(); return; }
   if(now-lastSentAt < 3000 && movedEnough===false) { renderMemberList(); return; }
@@ -788,16 +816,20 @@ const RTC_CONFIG = { iceServers:[{urls:'stun:stun.l.google.com:19302'}] };
 
 async function initPTT(){
   const btn=$('ptt-btn');
-  btn.disabled=false;
-  updatePTTStatus();
   try{
     localStream = await navigator.mediaDevices.getUserMedia({audio:true});
-    localStream.getAudioTracks().forEach(t=> t.enabled = (activeConvoy.ptt_enabled===false));
+    micAvailable = true;
+    // Start muted (disabled) until the user actually holds the button —
+    // the track exists on the connection from the start so no renegotiation
+    // is ever needed later.
+    localStream.getAudioTracks().forEach(t=> t.enabled = false);
+    btn.disabled=false;
   }catch(e){
-    toast('Microphone permission denied');
+    micAvailable = false;
+    toast('Microphone permission denied — you can still listen, but not talk.');
     btn.disabled=true;
-    return;
   }
+  updatePTTStatus();
 
   const start=(e)=>{ e.preventDefault(); startTalking(); };
   const stop=(e)=>{ e.preventDefault(); stopTalking(); };
@@ -808,13 +840,13 @@ async function initPTT(){
 function updatePTTStatus(){
   const btn=$('ptt-btn'); const st=$('ptt-status');
   if(activeConvoy.is_muted){ st.textContent='Convoy is silenced by admin'; btn.disabled=true; return; }
-  btn.disabled=false;
-  if(activeConvoy.ptt_enabled===false){ st.textContent='Open mic mode — everyone can talk freely'; btn.textContent='MIC\nOPEN'; }
-  else { st.textContent='Hold to talk'; btn.textContent='HOLD\nTO TALK'; }
+  btn.disabled = !micAvailable;
+  if(activeConvoy.ptt_enabled===false){ st.textContent=micAvailable?'Open mic mode — everyone can talk freely':'Open mic mode (mic unavailable)'; btn.textContent='MIC\nOPEN'; }
+  else { st.textContent=micAvailable?'Hold to talk':'Microphone unavailable'; btn.textContent='HOLD\nTO TALK'; }
 }
 
 async function startTalking(){
-  if(activeConvoy.is_muted || activeConvoy.ptt_enabled===false) return;
+  if(activeConvoy.is_muted || activeConvoy.ptt_enabled===false || !micAvailable) return;
   pttHeld=true;
   $('ptt-btn').classList.add('active');
   localStream.getAudioTracks().forEach(t=>t.enabled=true);
@@ -824,7 +856,7 @@ async function stopTalking(){
   if(activeConvoy.ptt_enabled===false) return;
   pttHeld=false;
   $('ptt-btn').classList.remove('active');
-  localStream.getAudioTracks().forEach(t=>t.enabled=false);
+  if(localStream) localStream.getAudioTracks().forEach(t=>t.enabled=false);
   await setSpeaking(false);
 }
 async function setSpeaking(val){
@@ -835,7 +867,7 @@ async function setSpeaking(val){
 
 /* --- WebRTC signaling helpers --- */
 function sendSignal(to,data){
-  signalChannel.send({type:'broadcast',event:'signal',payload:{to,from:currentUser.id,...data}});
+  presenceChannel.send({type:'broadcast',event:'signal',payload:{to,from:currentUser.id,...data}});
 }
 async function connectToPeer(otherId){
   if(peers[otherId] || otherId===currentUser.id) return;
@@ -850,14 +882,37 @@ async function connectToPeer(otherId){
 }
 function createPeerConnection(otherId){
   const pc = new RTCPeerConnection(RTC_CONFIG);
-  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  if(localStream){
+    // Mic granted: send our (possibly muted) track and also receive theirs.
+    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  } else {
+    // FIX: even if mic permission was denied, add a receive-only audio
+    // transceiver so we can still HEAR other members talking.
+    pc.addTransceiver('audio',{direction:'recvonly'});
+  }
   pc.onicecandidate = e=>{ if(e.candidate) sendSignal(otherId,{candidate:e.candidate}); };
   pc.ontrack = e=>{
     let audio = audioEls[otherId];
-    if(!audio){ audio=document.createElement('audio'); audio.autoplay=true; audio.playsInline=true; document.body.appendChild(audio); audioEls[otherId]=audio; }
+    if(!audio){
+      audio=document.createElement('audio');
+      audio.autoplay=true; audio.playsInline=true;
+      document.body.appendChild(audio);
+      audioEls[otherId]=audio;
+    }
     audio.srcObject = e.streams[0];
+    // FIX: explicitly call play() and catch autoplay-policy rejections,
+    // surfacing a one-tap "enable audio" banner instead of failing silently.
+    const p = audio.play();
+    if(p && p.catch){
+      p.catch(()=>{ if(!audioUnlocked) show('audio-unlock-banner'); });
+    }
   };
   return pc;
+}
+function unlockAudioPlayback(){
+  audioUnlocked = true;
+  Object.values(audioEls).forEach(a=>{ a.play().catch(()=>{}); });
+  hide('audio-unlock-banner');
 }
 async function handleSignal(payload){
   if(payload.to!==currentUser.id) return;
@@ -898,10 +953,10 @@ function openConvoySettings(){
       <div><b>Silence Entire Group</b><div class="muted">Nobody can transmit audio</div></div>
       <label class="switch"><input type="checkbox" id="set-mute" ${activeConvoy.is_muted?'checked':''} onchange="toggleMuteAll()"><span class="slider"></span></label>
     </div>
-    <div class="field" style="margin-top:12px;"><label>Add member by username</label>
+    <div class="field" style="margin-top:14px;"><label>Add member by username</label>
       <div class="row"><input id="add-username" placeholder="username"><button class="btn small" onclick="addMemberByUsername()">Add</button></div>
     </div>
-    <button class="btn danger" style="margin-top:10px;" onclick="deleteConvoy()">Delete Convoy</button>
+    <button class="btn danger" style="margin-top:12px;" onclick="deleteConvoy()">Delete Convoy</button>
     `:''}
   `);
 }
@@ -921,7 +976,7 @@ async function toggleMuteAll(){
   const val=$('set-mute').checked;
   await sb.from('convoys').update({is_muted:val}).eq('id',activeConvoy.id);
   activeConvoy.is_muted=val; updatePTTStatus();
-  if(val){ localStream && localStream.getAudioTracks().forEach(t=>t.enabled=false); }
+  if(val && localStream){ localStream.getAudioTracks().forEach(t=>t.enabled=false); }
 }
 async function addMemberByUsername(){
   const uname=$('add-username').value.trim().toLowerCase();
@@ -956,7 +1011,7 @@ async function leaveConvoyView(skipConfirm){
   if(!skipConfirm && !confirm('Leaving will remove you from the live convoy (you can rejoin anytime from your list). Continue?')) return;
 
   stopLocationTracking();
-  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; micAvailable=false; }
   cleanupChannels();
   await sb.from('locations').delete().eq('user_id',currentUser.id).eq('convoy_id',activeConvoy.id);
   await sb.from('speaking_status').delete().eq('user_id',currentUser.id).eq('convoy_id',activeConvoy.id);
@@ -1041,12 +1096,12 @@ function renderModal(innerHtml){
 function closeModal(){ $('modal-root').innerHTML=''; }
 
 /* ======================================================================
-   PWA — manifest via data URI + best-effort service worker
+   PWA
    ====================================================================== */
 (function setupPWA(){
   const manifest = {
     name:"Convoy Intercom", short_name:"Convoy", start_url:".", display:"standalone",
-    background_color:"#0f172a", theme_color:"#0f172a",
+    background_color:"#0b1220", theme_color:"#0b1220",
     icons:[{src:"https://cdn-icons-png.flaticon.com/512/2554/2554936.png", sizes:"512x512", type:"image/png"}]
   };
   const link=document.createElement('link'); link.rel='manifest';
@@ -1062,16 +1117,10 @@ function closeModal(){ $('modal-root').innerHTML=''; }
     try{
       const blob=new Blob([swCode],{type:'application/javascript'});
       const swUrl=URL.createObjectURL(blob);
-      navigator.serviceWorker.register(swUrl).catch(()=>{ /* offline caching unavailable on this host; app still works online */ });
-    }catch(e){ /* ignore - non-critical */ }
+      navigator.serviceWorker.register(swUrl).catch(()=>{});
+    }catch(e){}
   }
 })();
-
-/* attach map interaction listeners once map exists (delegated) */
-document.addEventListener('DOMContentLoaded',()=>{
-  const observer=new MutationObserver(()=>{ if(map){ map.on('dragstart zoomstart',markUserMoved); } });
-  observer.observe(document.body,{childList:true,subtree:true});
-});
 </script>
 </body>
 </html>
