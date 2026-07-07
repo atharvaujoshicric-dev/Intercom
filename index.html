@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -168,8 +167,18 @@ a{color:var(--accent);}
 input:checked+.slider{background:var(--success);}
 input:checked+.slider:before{transform:translateX(20px);}
 
-.search-box{display:flex;gap:8px;margin-bottom:10px;}
-.search-box input{flex:1;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;}
+/* Route Planner Styling */
+.route-box{display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:10px;}
+.route-input-container{position:relative;}
+.route-input-container input{width:100%;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;}
+.route-suggest-box{position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:0 0 var(--radius-sm) var(--radius-sm);z-index:99;max-height:160px;overflow-y:auto;box-shadow:var(--shadow);}
+.route-suggest-item{padding:9px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
+.route-suggest-item:hover{background:var(--bg);}
+.route-suggest-item:last-child{border-bottom:none;}
+.rs-pin{font-size:12px;}
+.rs-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.route-suggest-empty{padding:9px 12px;font-size:13px;}
+
 .toast{
   position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;
   padding:11px 18px;border-radius:12px;font-size:13.5px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.35);
@@ -184,7 +193,6 @@ input:checked+.slider:before{transform:translateX(20px);}
 <body data-theme="light">
 <div id="app">
 
-  <!-- ============ AUTH VIEW ============ -->
   <div id="view-auth" class="screen">
     <div class="card" style="margin-top:36px;">
       <h2 class="center" style="margin-top:2px;">🚚 Convoy Intercom</h2>
@@ -218,7 +226,6 @@ input:checked+.slider:before{transform:translateX(20px);}
     </div>
   </div>
 
-  <!-- ============ HOME VIEW (ads + convoy list) ============ -->
   <div id="view-home" class="hidden">
     <div class="topbar">
       <h1>🚚 Convoy Intercom</h1>
@@ -241,22 +248,35 @@ input:checked+.slider:before{transform:translateX(20px);}
     <button class="fab" onclick="openCreateJoin()">+</button>
   </div>
 
-  <!-- ============ CONVOY DETAIL VIEW ============ -->
   <div id="view-convoy" class="hidden">
     <div class="topbar">
-      <button class="iconbtn" onclick="leaveConvoyView()">←</button>
+      <button class="iconbtn" onclick="leaveConvoyView(false)">←</button>
       <h1 id="convoy-title">Convoy</h1>
       <div class="topbar-icons">
+        <button class="iconbtn" id="route-planner-toggle" onclick="openRoutePlanner()" title="Route Planner">🗺️</button>
         <button class="iconbtn" onclick="openConvoySettings()" title="Convoy settings">⚙️</button>
       </div>
     </div>
     <div id="map"></div>
     <div class="screen" style="padding-top:10px;">
-      <div class="search-box hidden" id="route-search-box">
-        <input id="route-search-input" placeholder="Search destination…">
-        <button class="btn small" onclick="searchDestination()">Set Route</button>
-        <button class="btn small secondary" onclick="clearRoute()">Clear</button>
+      
+      <div class="route-box hidden" id="route-search-box">
+        <div class="route-input-container">
+          <input id="route-start-input" placeholder="Start location (e.g. My Location)" oninput="onRouteInput('start')">
+          <button class="link-btn" style="text-align:left; font-size:12px; margin-bottom:4px;" onclick="useMyLocationAsStart()">📍 Use current location</button>
+          <div class="route-suggest-box" id="route-suggest-start"></div>
+        </div>
+        <div class="route-input-container">
+          <input id="route-end-input" placeholder="Destination..." oninput="onRouteInput('end')">
+          <div class="route-suggest-box" id="route-suggest-end"></div>
+        </div>
+        <div class="row">
+          <button class="btn small success" onclick="confirmRoute()">Set Route</button>
+          <button class="btn small secondary" onclick="clearRoute()">Clear</button>
+          <button class="btn small secondary" onclick="closeRoutePlanner()">Close</button>
+        </div>
       </div>
+
       <div class="member-list" id="member-list"></div>
     </div>
     <div id="audio-unlock-banner" class="hidden" onclick="unlockAudioPlayback()">🔊 Tap once to enable convoy audio</div>
@@ -266,7 +286,6 @@ input:checked+.slider:before{transform:translateX(20px);}
     </div>
   </div>
 
-  <!-- ============ PROFILE VIEW ============ -->
   <div id="view-profile" class="hidden">
     <div class="topbar">
       <button class="iconbtn" onclick="closeProfile()">←</button>
@@ -296,7 +315,6 @@ input:checked+.slider:before{transform:translateX(20px);}
     </div>
   </div>
 
-  <!-- ============ ADMIN VIEW (ads management) ============ -->
   <div id="view-admin" class="hidden">
     <div class="topbar">
       <button class="iconbtn" onclick="closeAdmin()">←</button>
@@ -324,8 +342,7 @@ input:checked+.slider:before{transform:translateX(20px);}
 
 <script>
 /* ======================================================================
-   CONVOY INTERCOM — single-file app
-   PASTE YOUR SUPABASE CREDENTIALS BELOW ↓↓↓
+   SUPABASE INTEGRATION CREDENTIALS
    ====================================================================== */
 const SUPABASE_URL = "https://vnvshbtmqiwusfclytts.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudnNoYnRtcWl3dXNmY2x5dHRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMjYzOTIsImV4cCI6MjA5ODkwMjM5Mn0.GP5kY3K9ixBrX0Wg64sINQ6vKkBdCi3kiJOVQcG7BSY";
@@ -333,7 +350,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth:{ persistSession:true, storage: window.localStorage, autoRefreshToken:true }
 });
 
-/* ---------------- Global state ---------------- */
+/* ---------------- Global state Variables ---------------- */
 let currentUser = null;
 let myProfile = null;
 let myConvoys = [];
@@ -353,7 +370,7 @@ let pttHeld = false;
 let audioUnlocked = false;
 let ads = [];
 
-/* ---------------- utils ---------------- */
+/* ---------------- Utility Helpers ---------------- */
 function $(id){ return document.getElementById(id); }
 function show(id){ $(id).classList.remove('hidden'); }
 function hide(id){ $(id).classList.add('hidden'); }
@@ -380,13 +397,13 @@ function timeAgo(ts){
 function initials(name){ return (name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 function uuidShort(){ return Math.random().toString(36).slice(2,8); }
 
-/* ---------------- THEME ---------------- */
+/* ---------------- Theme Engine ---------------- */
 function applyTheme(t){ document.body.setAttribute('data-theme',t); localStorage.setItem('ci_theme',t); }
 function toggleTheme(){ applyTheme(document.body.getAttribute('data-theme')==='dark'?'light':'dark'); }
 applyTheme(localStorage.getItem('ci_theme')||'light');
 
 /* ======================================================================
-   AUTH
+   AUTHENTICATION ENGINE
    ====================================================================== */
 function switchAuthTab(tab){
   $('tab-login').classList.toggle('active',tab==='login');
@@ -460,7 +477,7 @@ async function afterAuth(){
 })();
 
 /* ======================================================================
-   HOME / CONVOY LIST (WhatsApp-style)
+   DASHBOARD DISPLAY / ADVERTISING BANNERS
    ====================================================================== */
 async function loadAds(){
   const {data}=await sb.from('ads').select('*').eq('active',true).order('created_at',{ascending:false});
@@ -560,11 +577,7 @@ async function enterConvoy(convoy){
   const isCreator = convoy.creator_id === currentUser.id;
 
   if(!existing){
-    // FIX: the convoy creator must always rejoin as 'owner' with route access,
-    // never as a plain 'member'. Previously every rejoin (including the
-    // creator's) hardcoded role:'member', which permanently demoted the
-    // creator after their first "compulsory leave" and they lost all admin
-    // controls (settings, mute, member management, PTT toggle) for good.
+    // FIX: The convoy creator rejoining now inherits the 'owner' state instead of defaulting to a plain 'member'
     await sb.from('convoy_members').insert({
       convoy_id:convoy.id,
       user_id:currentUser.id,
@@ -572,9 +585,7 @@ async function enterConvoy(convoy){
       can_manage_route: isCreator
     });
   } else if(isCreator && existing.role!=='owner'){
-    // Safety net: if a stale/incorrect row somehow exists for the creator
-    // with the wrong role (e.g. from before this fix, or a race condition),
-    // restore owner status rather than leaving them stuck as a member.
+    // Safety Net: Restores creator ownership state flags if rows are updated incorrectly elsewhere
     await sb.from('convoy_members').update({role:'owner', can_manage_route:true}).eq('id',existing.id);
   }
 
@@ -582,7 +593,7 @@ async function enterConvoy(convoy){
 }
 
 /* ======================================================================
-   CONVOY DETAIL
+   LIVE SESSION MANAGEMENT (CONVOY RADAR SCREEN)
    ====================================================================== */
 async function openConvoyDetail(convoy){
   activeConvoy = convoy;
@@ -591,7 +602,7 @@ async function openConvoyDetail(convoy){
 
   hide('view-home'); show('view-convoy');
   $('convoy-title').textContent = convoy.name;
-  $('route-search-box').classList.toggle('hidden', !(mem.role!=='member' || mem.can_manage_route));
+  $('route-planner-toggle').classList.toggle('hidden', !(mem.role!=='member' || mem.can_manage_route));
   hide('audio-unlock-banner');
   audioUnlocked = false;
 
@@ -599,10 +610,7 @@ async function openConvoyDetail(convoy){
   await loadMembers();
   await loadRoute();
 
-  // IMPORTANT FIX: acquire microphone BEFORE opening realtime/WebRTC signaling,
-  // so peer connections are created with the audio track already attached.
-  // Previously mic permission was requested after signaling started, so peer
-  // connections had no audio m-line and nobody could ever hear anyone.
+  // FIX: Acquire mic permissions BEFORE establishing signaling connections to avoid dynamic stream negotiation failure
   await initPTT();
   subscribeConvoyRealtime();
   startLocationTracking();
@@ -681,7 +689,7 @@ function renderMarkers(){
 }
 
 /* ======================================================================
-   REALTIME SUBSCRIPTIONS (locations, members, speaking, route, presence)
+   REALTIME PUBSUB ENGINE (GEO-TRACKING & MESH SIGNALING)
    ====================================================================== */
 function subscribeConvoyRealtime(){
   cleanupChannels();
@@ -714,16 +722,13 @@ function subscribeConvoyRealtime(){
       drawRoute(r.origin_lat,r.origin_lng,r.dest_lat,r.dest_lng,r.dest_label,r.origin_label);
     }).subscribe();
 
-  // Presence + WebRTC signaling channel (ephemeral, not persisted)
   presenceChannel = sb.channel('presence-'+cid,{ config:{ presence:{ key:currentUser.id } } });
   presenceChannel
     .on('presence',{event:'sync'},()=>{
       const state=presenceChannel.presenceState();
       Object.keys(members).forEach(uid=> members[uid].online = !!state[uid]);
       renderMemberList();
-      // FIX: connect to everyone already in the room at sync time, not just
-      // future joiners. Without this, a user opening the convoy after others
-      // are already present never establishes a peer connection to them.
+      // FIX: Establish links to all users inside the room immediately on sync
       Object.keys(state).forEach(otherId=>{
         if(otherId!==currentUser.id) connectToPeer(otherId);
       });
@@ -760,7 +765,7 @@ async function handleReconnect(){
 }
 
 /* ======================================================================
-   GPS TRACKING (battery-efficient: time+distance throttled)
+   BATTERY-OPTIMIZED GEOLOCATION DEBOUNCING
    ====================================================================== */
 function startLocationTracking(){
   if(!navigator.geolocation){ toast('Geolocation not supported'); return; }
@@ -795,18 +800,14 @@ async function onPosition(pos){
 function onPosError(err){ toast('Location error: '+err.message); }
 
 /* ======================================================================
-   ROUTE SEARCH (Nominatim geocoding + Leaflet Routing Machine)
-   Google-Maps-style: separate "Start" and "End" fields, with the start
-   defaulting to "My Location" but editable to any place.
+   GOOGLE-MAPS-STYLE ROUTE DEBOUNCER & AUTOCOMPLETE ENGINE
    ====================================================================== */
-let routeOriginCoords = null; // {lat,lng,label} chosen origin
-let routeDestCoords = null;   // {lat,lng,label} chosen destination
+let routeOriginCoords = null;
+let routeDestCoords = null;
 let geocodeDebounce = {start:null, end:null};
 
 function openRoutePlanner(){
-  const box = $('route-search-box');
-  box.classList.remove('hidden');
-  // Pre-fill origin with current location if we don't have one chosen yet
+  show('route-search-box');
   if(!routeOriginCoords && lastPos){
     routeOriginCoords = {lat:lastPos.lat, lng:lastPos.lng, label:'My Location'};
   }
@@ -814,10 +815,9 @@ function openRoutePlanner(){
   $('route-end-input').value = routeDestCoords ? routeDestCoords.label : '';
   $('route-suggest-start').innerHTML='';
   $('route-suggest-end').innerHTML='';
-  $('route-start-input').focus();
 }
 function closeRoutePlanner(){
-  $('route-search-box').classList.add('hidden');
+  hide('route-search-box');
   $('route-suggest-start').innerHTML='';
   $('route-suggest-end').innerHTML='';
 }
@@ -842,14 +842,14 @@ function onRouteInput(which){
     try{
       const results = await geocodePlace(q);
       renderRouteSuggestions(which, results);
-    }catch(e){ /* silent, network hiccup */ }
+    }catch(e){}
   },450);
 }
 function renderRouteSuggestions(which, results){
   const suggestId = which==='start' ? 'route-suggest-start' : 'route-suggest-end';
   const el=$(suggestId);
   if(!results.length){ el.innerHTML='<div class="route-suggest-empty muted">No matches</div>'; return; }
-  el.innerHTML = results.map((r,i)=>`
+  el.innerHTML = results.map((r)=>`
     <div class="route-suggest-item" onclick='selectRouteSuggestion("${which}", ${JSON.stringify(r.lat)}, ${JSON.stringify(r.lon)}, ${JSON.stringify(r.display_name.split(',')[0])})'>
       <span class="rs-pin">📍</span><span class="rs-text">${r.display_name}</span>
     </div>`).join('');
@@ -887,7 +887,7 @@ async function clearRoute(){
 }
 
 /* ======================================================================
-   PUSH-TO-TALK (WebRTC mesh via Supabase Realtime Broadcast signaling)
+   WEBRTC INTERCOM (VOIP AUDIO PTT OVER BROADCASM SIGNALS)
    ====================================================================== */
 const RTC_CONFIG = { iceServers:[{urls:'stun:stun.l.google.com:19302'}] };
 
@@ -896,14 +896,11 @@ async function initPTT(){
   try{
     localStream = await navigator.mediaDevices.getUserMedia({audio:true});
     micAvailable = true;
-    // Start muted (disabled) until the user actually holds the button —
-    // the track exists on the connection from the start so no renegotiation
-    // is ever needed later.
     localStream.getAudioTracks().forEach(t=> t.enabled = false);
     btn.disabled=false;
   }catch(e){
     micAvailable = false;
-    toast('Microphone permission denied — you can still listen, but not talk.');
+    toast('Microphone permission denied — listening mode only.');
     btn.disabled=true;
   }
   updatePTTStatus();
@@ -914,10 +911,6 @@ async function initPTT(){
   btn.onmouseup=stop; btn.ontouchend=stop; btn.onmouseleave=stop; btn.ontouchcancel=stop;
 }
 
-// PTT mode is "required" by default. A convoy row with ptt_enabled left as
-// NULL (e.g. a freshly created convoy, before any admin has touched the
-// setting) must behave as PTT-required, matching the "Hold to talk" default
-// button label. Anything other than an explicit `false` means PTT-required.
 function isPTTRequired(){
   return activeConvoy.ptt_enabled !== false;
 }
@@ -926,12 +919,10 @@ function updatePTTStatus(){
   const btn=$('ptt-btn'); const st=$('ptt-status');
   if(activeConvoy.is_muted){ st.textContent='Convoy is silenced by admin'; btn.disabled=true; return; }
   btn.disabled = !micAvailable;
+  
   if(!isPTTRequired()){
-    st.textContent=micAvailable?'Open mic mode — everyone can talk freely':'Open mic mode (mic unavailable)';
+    st.textContent=micAvailable?'Open mic mode — broadcasting live':'Open mic mode (mic unavailable)';
     btn.textContent='MIC\nOPEN';
-    // Open mic: keep the track enabled continuously rather than requiring a
-    // hold. This is the piece that was previously missing entirely — no
-    // code ever turned the mic on in open-mic mode.
     if(micAvailable && !activeConvoy.is_muted){
       localStream.getAudioTracks().forEach(t=>t.enabled=true);
       if(!pttHeld){ pttHeld=true; setSpeaking(true); }
@@ -939,8 +930,6 @@ function updatePTTStatus(){
   } else {
     st.textContent=micAvailable?'Hold to talk':'Microphone unavailable';
     btn.textContent='HOLD\nTO TALK';
-    // Coming back from open-mic (or mute) into required-PTT mode: make sure
-    // the mic is off again until the button is actually held.
     if(micAvailable && !pttHeldByButton){
       localStream.getAudioTracks().forEach(t=>t.enabled=false);
       if(pttHeld){ pttHeld=false; setSpeaking(false); }
@@ -951,17 +940,15 @@ let pttHeldByButton=false;
 
 async function startTalking(){
   if(activeConvoy.is_muted || !micAvailable) return;
-  if(!isPTTRequired()) return; // already always-on in open mic mode
-  pttHeldByButton=true;
-  pttHeld=true;
+  if(!isPTTRequired()) return;
+  pttHeldByButton=true; pttHeld=true;
   $('ptt-btn').classList.add('active');
   localStream.getAudioTracks().forEach(t=>t.enabled=true);
   await setSpeaking(true);
 }
 async function stopTalking(){
-  if(!isPTTRequired()) return; // open mic stays on regardless of button release
-  pttHeldByButton=false;
-  pttHeld=false;
+  if(!isPTTRequired()) return;
+  pttHeldByButton=false; pttHeld=false;
   $('ptt-btn').classList.remove('active');
   if(localStream) localStream.getAudioTracks().forEach(t=>t.enabled=false);
   await setSpeaking(false);
@@ -972,13 +959,12 @@ async function setSpeaking(val){
   },{onConflict:'user_id'});
 }
 
-/* --- WebRTC signaling helpers --- */
 function sendSignal(to,data){
   presenceChannel.send({type:'broadcast',event:'signal',payload:{to,from:currentUser.id,...data}});
 }
 async function connectToPeer(otherId){
   if(peers[otherId] || otherId===currentUser.id) return;
-  const polite = currentUser.id < otherId; // lower id = initiator
+  const polite = currentUser.id < otherId;
   const pc = createPeerConnection(otherId);
   peers[otherId]=pc;
   if(polite){
@@ -990,11 +976,9 @@ async function connectToPeer(otherId){
 function createPeerConnection(otherId){
   const pc = new RTCPeerConnection(RTC_CONFIG);
   if(localStream){
-    // Mic granted: send our (possibly muted) track and also receive theirs.
     localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
   } else {
-    // FIX: even if mic permission was denied, add a receive-only audio
-    // transceiver so we can still HEAR other members talking.
+    // FIX: Fallback receiver track assignment to hear streams even if your local mic permission is blocked
     pc.addTransceiver('audio',{direction:'recvonly'});
   }
   pc.onicecandidate = e=>{ if(e.candidate) sendSignal(otherId,{candidate:e.candidate}); };
@@ -1007,8 +991,6 @@ function createPeerConnection(otherId){
       audioEls[otherId]=audio;
     }
     audio.srcObject = e.streams[0];
-    // FIX: explicitly call play() and catch autoplay-policy rejections,
-    // surfacing a one-tap "enable audio" banner instead of failing silently.
     const p = audio.play();
     if(p && p.catch){
       p.catch(()=>{ if(!audioUnlocked) show('audio-unlock-banner'); });
@@ -1039,7 +1021,7 @@ async function handleSignal(payload){
 }
 
 /* ======================================================================
-   CONVOY SETTINGS (owner/admin controls) + member management
+   ADMIN CONVOY OPERATIONAL CONTROL SETTINGS
    ====================================================================== */
 function openConvoySettings(){
   const isOwner = activeMembership.role==='owner';
@@ -1111,7 +1093,7 @@ async function deleteConvoy(){
 }
 
 /* ======================================================================
-   LEAVE CONVOY (compulsory on exit — membership removed, saved kept)
+   SESSION TEARDOWN DESTRUCTOR
    ====================================================================== */
 async function leaveConvoyView(skipConfirm){
   if(!activeConvoy) { hide('view-convoy'); show('view-home'); return; }
@@ -1131,7 +1113,7 @@ async function leaveConvoyView(skipConfirm){
 }
 
 /* ======================================================================
-   PROFILE
+   USER PERSONAL PROFILES
    ====================================================================== */
 function openProfile(){
   $('pf-name').value=myProfile.full_name;
@@ -1161,7 +1143,7 @@ async function toggleGlobalLocation(){
 }
 
 /* ======================================================================
-   ADMIN (Ads) — only visible to profiles.is_admin
+   ADMINISTRATOR SPONSORED MARKETING MANAGEMENT BANNERS
    ====================================================================== */
 function openAdmin(){
   if(!myProfile.is_admin){ toast('Admin access only'); return; }
@@ -1195,7 +1177,7 @@ async function toggleAd(id,val){ await sb.from('ads').update({active:val}).eq('i
 async function deleteAd(id){ if(!confirm('Delete this ad?'))return; await sb.from('ads').delete().eq('id',id); loadAdManageList(); loadAds(); }
 
 /* ======================================================================
-   MODAL HELPER
+   INTERFACE MODAL WINDOW HANGING TARGETS
    ====================================================================== */
 function renderModal(innerHtml){
   $('modal-root').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${innerHtml}</div></div>`;
@@ -1203,7 +1185,7 @@ function renderModal(innerHtml){
 function closeModal(){ $('modal-root').innerHTML=''; }
 
 /* ======================================================================
-   PWA
+   PWA SERVICE WORKERS INSTANTIATORS
    ====================================================================== */
 (function setupPWA(){
   const manifest = {
