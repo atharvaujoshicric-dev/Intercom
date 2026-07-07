@@ -631,7 +631,7 @@ async function loadMembers(){
 
 async function loadRoute(){
   const {data}=await sb.from('route_points').select('*').eq('convoy_id',activeConvoy.id).maybeSingle();
-  if(data) drawRoute(data.origin_lat,data.origin_lng,data.dest_lat,data.dest_lng,data.dest_label);
+  if(data) drawRoute(data.origin_lat,data.origin_lng,data.dest_lat,data.dest_lng,data.dest_label,data.origin_label);
 }
 
 function renderMemberList(){
@@ -711,7 +711,7 @@ function subscribeConvoyRealtime(){
     .on('postgres_changes',{event:'*',schema:'public',table:'route_points',filter:'convoy_id=eq.'+cid},payload=>{
       if(payload.eventType==='DELETE'){ if(routeControl) map.removeControl(routeControl); return; }
       const r=payload.new;
-      drawRoute(r.origin_lat,r.origin_lng,r.dest_lat,r.dest_lng,r.dest_label);
+      drawRoute(r.origin_lat,r.origin_lng,r.dest_lat,r.dest_lng,r.dest_label,r.origin_label);
     }).subscribe();
 
   // Presence + WebRTC signaling channel (ephemeral, not persisted)
@@ -796,35 +796,94 @@ function onPosError(err){ toast('Location error: '+err.message); }
 
 /* ======================================================================
    ROUTE SEARCH (Nominatim geocoding + Leaflet Routing Machine)
+   Google-Maps-style: separate "Start" and "End" fields, with the start
+   defaulting to "My Location" but editable to any place.
    ====================================================================== */
-async function searchDestination(){
-  const q=$('route-search-input').value.trim();
-  if(!q){ toast('Enter a destination'); return; }
-  if(!lastPos){ toast('Waiting for your location…'); return; }
-  try{
-    const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q));
-    const data=await res.json();
-    if(!data.length){ toast('Place not found'); return; }
-    const dest=data[0];
-    await sb.from('route_points').upsert({
-      convoy_id:activeConvoy.id, origin_lat:lastPos.lat, origin_lng:lastPos.lng,
-      origin_label:'Convoy Start', dest_lat:parseFloat(dest.lat), dest_lng:parseFloat(dest.lon),
-      dest_label:dest.display_name.split(',')[0], set_by:currentUser.id, updated_at:new Date().toISOString()
-    },{onConflict:'convoy_id'});
-    drawRoute(lastPos.lat,lastPos.lng,parseFloat(dest.lat),parseFloat(dest.lon),dest.display_name.split(',')[0]);
-  }catch(e){ toast('Search failed'); }
+let routeOriginCoords = null; // {lat,lng,label} chosen origin
+let routeDestCoords = null;   // {lat,lng,label} chosen destination
+let geocodeDebounce = {start:null, end:null};
+
+function openRoutePlanner(){
+  const box = $('route-search-box');
+  box.classList.remove('hidden');
+  // Pre-fill origin with current location if we don't have one chosen yet
+  if(!routeOriginCoords && lastPos){
+    routeOriginCoords = {lat:lastPos.lat, lng:lastPos.lng, label:'My Location'};
+  }
+  $('route-start-input').value = routeOriginCoords ? routeOriginCoords.label : '';
+  $('route-end-input').value = routeDestCoords ? routeDestCoords.label : '';
+  $('route-suggest-start').innerHTML='';
+  $('route-suggest-end').innerHTML='';
+  $('route-start-input').focus();
 }
-function drawRoute(oLat,oLng,dLat,dLng,label){
+function closeRoutePlanner(){
+  $('route-search-box').classList.add('hidden');
+  $('route-suggest-start').innerHTML='';
+  $('route-suggest-end').innerHTML='';
+}
+function useMyLocationAsStart(){
+  if(!lastPos){ toast('Waiting for your location…'); return; }
+  routeOriginCoords = {lat:lastPos.lat, lng:lastPos.lng, label:'My Location'};
+  $('route-start-input').value='My Location';
+  $('route-suggest-start').innerHTML='';
+}
+async function geocodePlace(query){
+  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&q='+encodeURIComponent(query));
+  return res.json();
+}
+function onRouteInput(which){
+  clearTimeout(geocodeDebounce[which]);
+  const inputId = which==='start' ? 'route-start-input' : 'route-end-input';
+  const suggestId = which==='start' ? 'route-suggest-start' : 'route-suggest-end';
+  const q = $(inputId).value.trim();
+  if(which==='start') routeOriginCoords=null; else routeDestCoords=null;
+  if(q.length<3){ $(suggestId).innerHTML=''; return; }
+  geocodeDebounce[which]=setTimeout(async()=>{
+    try{
+      const results = await geocodePlace(q);
+      renderRouteSuggestions(which, results);
+    }catch(e){ /* silent, network hiccup */ }
+  },450);
+}
+function renderRouteSuggestions(which, results){
+  const suggestId = which==='start' ? 'route-suggest-start' : 'route-suggest-end';
+  const el=$(suggestId);
+  if(!results.length){ el.innerHTML='<div class="route-suggest-empty muted">No matches</div>'; return; }
+  el.innerHTML = results.map((r,i)=>`
+    <div class="route-suggest-item" onclick='selectRouteSuggestion("${which}", ${JSON.stringify(r.lat)}, ${JSON.stringify(r.lon)}, ${JSON.stringify(r.display_name.split(',')[0])})'>
+      <span class="rs-pin">📍</span><span class="rs-text">${r.display_name}</span>
+    </div>`).join('');
+}
+function selectRouteSuggestion(which, lat, lon, label){
+  const coords = {lat:parseFloat(lat), lng:parseFloat(lon), label};
+  if(which==='start'){ routeOriginCoords=coords; $('route-start-input').value=label; $('route-suggest-start').innerHTML=''; }
+  else { routeDestCoords=coords; $('route-end-input').value=label; $('route-suggest-end').innerHTML=''; }
+}
+async function confirmRoute(){
+  if(!routeOriginCoords){ toast('Choose a start location'); return; }
+  if(!routeDestCoords){ toast('Choose a destination'); return; }
+  await sb.from('route_points').upsert({
+    convoy_id:activeConvoy.id,
+    origin_lat:routeOriginCoords.lat, origin_lng:routeOriginCoords.lng, origin_label:routeOriginCoords.label,
+    dest_lat:routeDestCoords.lat, dest_lng:routeDestCoords.lng, dest_label:routeDestCoords.label,
+    set_by:currentUser.id, updated_at:new Date().toISOString()
+  },{onConflict:'convoy_id'});
+  drawRoute(routeOriginCoords.lat,routeOriginCoords.lng,routeDestCoords.lat,routeDestCoords.lng,routeDestCoords.label,routeOriginCoords.label);
+  closeRoutePlanner();
+}
+function drawRoute(oLat,oLng,dLat,dLng,destLabel,originLabel){
   if(routeControl){ map.removeControl(routeControl); routeControl=null; }
   routeControl = L.Routing.control({
     waypoints:[L.latLng(oLat,oLng), L.latLng(dLat,dLng)],
     routeWhileDragging:false, addWaypoints:false, draggableWaypoints:false,
-    show:false, createMarker:(i,wp)=> L.marker(wp.latLng).bindPopup(i===0?'Start':(label||'Destination'))
+    show:false, createMarker:(i,wp)=> L.marker(wp.latLng).bindPopup(i===0?(originLabel||'Start'):(destLabel||'Destination'))
   }).addTo(map);
 }
 async function clearRoute(){
+  routeOriginCoords=null; routeDestCoords=null;
   await sb.from('route_points').delete().eq('convoy_id',activeConvoy.id);
   if(routeControl){ map.removeControl(routeControl); routeControl=null; }
+  closeRoutePlanner();
 }
 
 /* ======================================================================
@@ -855,23 +914,53 @@ async function initPTT(){
   btn.onmouseup=stop; btn.ontouchend=stop; btn.onmouseleave=stop; btn.ontouchcancel=stop;
 }
 
+// PTT mode is "required" by default. A convoy row with ptt_enabled left as
+// NULL (e.g. a freshly created convoy, before any admin has touched the
+// setting) must behave as PTT-required, matching the "Hold to talk" default
+// button label. Anything other than an explicit `false` means PTT-required.
+function isPTTRequired(){
+  return activeConvoy.ptt_enabled !== false;
+}
+
 function updatePTTStatus(){
   const btn=$('ptt-btn'); const st=$('ptt-status');
   if(activeConvoy.is_muted){ st.textContent='Convoy is silenced by admin'; btn.disabled=true; return; }
   btn.disabled = !micAvailable;
-  if(activeConvoy.ptt_enabled===false){ st.textContent=micAvailable?'Open mic mode — everyone can talk freely':'Open mic mode (mic unavailable)'; btn.textContent='MIC\nOPEN'; }
-  else { st.textContent=micAvailable?'Hold to talk':'Microphone unavailable'; btn.textContent='HOLD\nTO TALK'; }
+  if(!isPTTRequired()){
+    st.textContent=micAvailable?'Open mic mode — everyone can talk freely':'Open mic mode (mic unavailable)';
+    btn.textContent='MIC\nOPEN';
+    // Open mic: keep the track enabled continuously rather than requiring a
+    // hold. This is the piece that was previously missing entirely — no
+    // code ever turned the mic on in open-mic mode.
+    if(micAvailable && !activeConvoy.is_muted){
+      localStream.getAudioTracks().forEach(t=>t.enabled=true);
+      if(!pttHeld){ pttHeld=true; setSpeaking(true); }
+    }
+  } else {
+    st.textContent=micAvailable?'Hold to talk':'Microphone unavailable';
+    btn.textContent='HOLD\nTO TALK';
+    // Coming back from open-mic (or mute) into required-PTT mode: make sure
+    // the mic is off again until the button is actually held.
+    if(micAvailable && !pttHeldByButton){
+      localStream.getAudioTracks().forEach(t=>t.enabled=false);
+      if(pttHeld){ pttHeld=false; setSpeaking(false); }
+    }
+  }
 }
+let pttHeldByButton=false;
 
 async function startTalking(){
-  if(activeConvoy.is_muted || activeConvoy.ptt_enabled===false || !micAvailable) return;
+  if(activeConvoy.is_muted || !micAvailable) return;
+  if(!isPTTRequired()) return; // already always-on in open mic mode
+  pttHeldByButton=true;
   pttHeld=true;
   $('ptt-btn').classList.add('active');
   localStream.getAudioTracks().forEach(t=>t.enabled=true);
   await setSpeaking(true);
 }
 async function stopTalking(){
-  if(activeConvoy.ptt_enabled===false) return;
+  if(!isPTTRequired()) return; // open mic stays on regardless of button release
+  pttHeldByButton=false;
   pttHeld=false;
   $('ptt-btn').classList.remove('active');
   if(localStream) localStream.getAudioTracks().forEach(t=>t.enabled=false);
@@ -965,7 +1054,7 @@ function openConvoySettings(){
     ${isOwner?`
     <div class="switch-row">
       <div><b>Require Push-to-Talk</b><div class="muted">Off = open mic for everyone</div></div>
-      <label class="switch"><input type="checkbox" id="set-ptt" ${activeConvoy.ptt_enabled?'checked':''} onchange="togglePTTMode()"><span class="slider"></span></label>
+      <label class="switch"><input type="checkbox" id="set-ptt" ${isPTTRequired()?'checked':''} onchange="togglePTTMode()"><span class="slider"></span></label>
     </div>
     <div class="switch-row">
       <div><b>Silence Entire Group</b><div class="muted">Nobody can transmit audio</div></div>
@@ -1035,7 +1124,7 @@ async function leaveConvoyView(skipConfirm){
   await sb.from('speaking_status').delete().eq('user_id',currentUser.id).eq('convoy_id',activeConvoy.id);
   await sb.from('convoy_members').delete().eq('convoy_id',activeConvoy.id).eq('user_id',currentUser.id);
 
-  activeConvoy=null; activeMembership=null; members={};
+  activeConvoy=null; activeMembership=null; members={}; routeOriginCoords=null; routeDestCoords=null;
   if(map){ map.remove(); map=null; }
   hide('view-convoy'); show('view-home');
   await loadMyConvoys();
