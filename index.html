@@ -361,7 +361,7 @@ let map, markerLayer = {}, routeControl;
 let watchId = null;
 let lastSentAt = 0;
 let lastPos = null;
-let locChannel, memberChannel, speakChannel, presenceChannel, routeChannel;
+let locChannel, memberChannel, speakChannel, presenceChannel, routeChannel, convoyChannel;
 let localStream = null;
 let micAvailable = false;
 let peers = {};
@@ -695,6 +695,18 @@ function subscribeConvoyRealtime(){
   cleanupChannels();
   const cid=activeConvoy.id;
 
+  // FIX: without this, when the owner flips "Require Push-to-Talk" (open mic)
+  // or "Silence Entire Group", every OTHER member's local activeConvoy object
+  // never updates — so updatePTTStatus() never re-runs for them, their audio
+  // track never gets enabled for open-mic mode, and their PTT button stays
+  // stuck showing the old mode. This is why audio looked broken: it was only
+  // ever working for whoever personally flipped the switch.
+  convoyChannel = sb.channel('convoy-'+cid)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'convoys',filter:'id=eq.'+cid},payload=>{
+      activeConvoy = payload.new;
+      updatePTTStatus();
+    }).subscribe();
+
   locChannel = sb.channel('locations-'+cid)
     .on('postgres_changes',{event:'*',schema:'public',table:'locations',filter:'convoy_id=eq.'+cid},payload=>{
       const row=payload.new;
@@ -751,8 +763,8 @@ function subscribeConvoyRealtime(){
 }
 
 function cleanupChannels(){
-  [locChannel,memberChannel,speakChannel,routeChannel,presenceChannel].forEach(ch=>{ if(ch) sb.removeChannel(ch); });
-  locChannel=memberChannel=speakChannel=routeChannel=presenceChannel=null;
+  [locChannel,memberChannel,speakChannel,routeChannel,presenceChannel,convoyChannel].forEach(ch=>{ if(ch) sb.removeChannel(ch); });
+  locChannel=memberChannel=speakChannel=routeChannel=presenceChannel=convoyChannel=null;
   Object.values(peers).forEach(pc=>pc.close()); peers={};
   Object.values(audioEls).forEach(a=>a.remove()); audioEls={};
 }
